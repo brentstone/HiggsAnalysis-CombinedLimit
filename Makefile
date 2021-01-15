@@ -22,8 +22,8 @@
 #######################################################################
 
 # Boost
-BOOST = /cvmfs/cms.cern.ch/slc7_amd64_gcc700/external/boost/1.63.0-gnimlf
-VDT   = /cvmfs/cms.cern.ch/slc7_amd64_gcc700/cms/vdt/0.4.0-gnimlf
+#BOOST = /cvmfs/cms.cern.ch/slc7_amd64_gcc700/external/boost/1.63.0-gnimlf
+#VDT   = /cvmfs/cms.cern.ch/slc7_amd64_gcc700/cms/vdt/0.4.0-gnimlf
 # PCRE = /cvmfs/cms.cern.ch/slc7_amd64_gcc700/external/pcre/8.37-omkpbe2
 GSL = /cvmfs/cms.cern.ch/slc7_amd64_gcc700/external/gsl/2.2.1-omkpbe2
 # LIBXML = /cvmfs/cms.cern.ch/slc7_amd64_gcc700/external/libxml2/2.9.1-omkpbe2/include/libxml2
@@ -34,12 +34,28 @@ CC = c++
 ROOTCFLAGS = $(shell root-config --cflags)
 ROOTLIBS = $(shell root-config --libs --glibs)
 ROOTINC = $(shell root-config --incdir)
+PLATFORM= $(shell root-config --platform)
 
+# Boost
+ifeq ($(PLATFORM),macosx)
+BOOST=$(BOOSTPATH)
+else
+BOOST = /cvmfs/cms.cern.ch/slc7_amd64_gcc700/external/boost/1.63.0-gnimlf
+VDT   = /cvmfs/cms.cern.ch/slc7_amd64_gcc700/cms/vdt/0.4.0-gnimlf
+endif
+
+ifeq ($(PLATFORM),macosx)
+CCFLAGS = -D STANDALONE $(ROOTCFLAGS) -I$(BOOST)/include -I$(VDT)/include -g -fPIC
+# CMSSW CXXFLAGS plus -Wno-unused-local-typedefs (otherwise we get a flood of messages from BOOST) plus -Wno-unused-function
+CCFLAGS += -O2 -pedantic -pthread -pipe -Wno-vla -Werror=overflow -Wstrict-overflow -std=c++0x -msse3 -ftree-vectorize -Wno-strict-overflow -Werror=array-bounds -Werror=type-limits -fvisibility-inlines-hidden -fno-math-errno -felide-constructors -fmessage-length=0 -ftemplate-depth-300 -Wall -Wno-long-long -Wreturn-type -Wunused -Wparentheses -Wno-deprecated -Werror=return-type -Werror=missing-braces -Werror=unused-value -Werror=address -Werror=format -Werror=sign-compare -Werror=write-strings -Werror=delete-non-virtual-dtor -Werror=strict-aliasing -Werror=narrowing -Werror=uninitialized -Werror=reorder -Werror=unused-variable -Werror=conversion-null -Werror=switch -fdiagnostics-show-option -DBOOST_DISABLE_ASSERTS -Wno-unused-local-typedefs -Wno-unused-function -Wno-mismatched-tags -Wno-overloaded-virtual -Wno-unknown-pragmas -Wno-unused-variable -Wno-potentially-evaluated-expression -Wno-format-security
+LIBS = $(ROOTLIBS) -L$(BOOST)/lib -l RooFit -lRooFitCore -l RooStats -l Minuit -l MathMore -l Foam -lHistFactory -lboost_filesystem -lboost_program_options -lboost_system -lvdt
+else
 # CCFLAGS = -D STANDALONE $(ROOTCFLAGS) -I$(BOOST)/include -I$(VDT)/include -I$(PCRE)/include -I$(GSL)/include -I$(LIBXML)/include/libxml2 -I$(XZ)/include -I$(ZLIB)/include -g -fPIC
 CCFLAGS = -D STANDALONE $(ROOTCFLAGS) -I$(BOOST)/include -I$(VDT)/include -I$(GSL)/include -g -fPIC
 # CMSSW CXXFLAGS plus -Wno-unused-local-typedefs (otherwise we get a flood of messages from BOOST) plus -Wno-unused-function
 CCFLAGS += -O2 -pthread -pipe -Werror=main -Werror=pointer-arith -Werror=overlength-strings -Wno-vla -Werror=overflow -std=c++1z -ftree-vectorize -Wstrict-overflow -Werror=array-bounds -Werror=format-contains-nul -Werror=type-limits -fvisibility-inlines-hidden -fno-math-errno --param vect-max-version-for-alias-checks=50 -Xassembler --compress-debug-sections -msse3 -felide-constructors -fmessage-length=0 -Wall -Wno-non-template-friend -Wno-long-long -Wreturn-type -Wunused -Wparentheses -Wno-deprecated -Werror=return-type -Werror=missing-braces -Werror=unused-value -Werror=address -Werror=format -Werror=sign-compare -Werror=write-strings -Werror=delete-non-virtual-dtor -Werror=strict-aliasing -Werror=narrowing -Werror=unused-but-set-variable -Werror=reorder -Werror=unused-variable -Werror=conversion-null -Werror=return-local-addr -Wnon-virtual-dtor -Werror=switch -fdiagnostics-show-option -Wno-unused-local-typedefs -Wno-attributes -Wno-psabi -Wno-error=unused-variable -DBOOST_DISABLE_ASSERTS -DGNU_GCC -D_GNU_SOURCE -DBOOST_SPIRIT_THREADSAFE -DPHOENIX_THREADSAFE
 LIBS = $(ROOTLIBS) -L$(BOOST)/lib -L$(VDT)/lib -L$(GSL)/lib -lgsl -l RooFit -lRooFitCore -l RooStats -l Minuit -lMathMore -l Foam -lHistFactory -lboost_filesystem -lboost_program_options -lboost_system -lvdt
+endif
 
 # Library name -----------------------------------------------------------------
 LIBNAME=HiggsAnalysisCombinedLimit
@@ -49,7 +65,11 @@ DICTNAME=$(LIBNAME)_xr
 # Linker and flags -------------------------------------------------------------
 LD = g++
 ROOTLDFLAGS   = $(shell root-config --ldflags)
+ifeq ($(PLATFORM),macosx)
+LDFLAGS       = $(ROOTLDFLAGS) -rdynamic -shared -rpath $(ROOTSYS)/lib -install_name $(shell pwd)/$(LIB_DIR)/$(SONAME) -fPIC -lMathmore
+else
 LDFLAGS       = $(ROOTLDFLAGS) -shared -Wl,-soname,$(SONAME) -Wl,-E -Wl,-z,defs -fPIC
+endif
 
 # Directory structure ----------------------------------------------------------
 PARENT_DIR = $(shell pwd)/../../
@@ -76,6 +96,11 @@ EXES = $(PROGS:.cpp=)
 all: dirs dict obj lib exe compile_python
 
 #---------------------------------------
+ifeq ($(PLATFORM),macosx)
+LNOPT="-s"
+else
+LNOPT="-sd"
+endif
 
 dirs:
 	@mkdir -p $(OBJ_DIR)/a
@@ -83,7 +108,8 @@ dirs:
 	@mkdir -p $(LIB_DIR)
 	@mkdir -p $(EXE_DIR)
 	@mkdir -p $(LIB_DIR)/python/HiggsAnalysis
-	@ln -sd ../../../python $(LIB_DIR)/python/HiggsAnalysis/CombinedLimit || /bin/true
+#	@ln -sd ../../../python $(LIB_DIR)/python/HiggsAnalysis/CombinedLimit || /bin/true
+	@ln $(LNOPT) ../../../python $(LIB_DIR)/python/HiggsAnalysis/CombinedLimit || /bin/true
 	@touch $(LIB_DIR)/python/__init__.py
 	@touch $(LIB_DIR)/python/HiggsAnalysis/__init__.py
 	@touch $(LIB_DIR)/python/HiggsAnalysis/CombinedLimit/__init__.py
@@ -121,7 +147,9 @@ lib: dirs ${LIB_DIR}/$(SONAME)
 ${LIB_DIR}/$(SONAME):$(addprefix $(OBJ_DIR)/,$(OBJS)) $(OBJ_DIR)/a/$(DICTNAME).o 
 #	@echo "\n*** Building $(SONAME) library:"
 	$(LD) $(LDFLAGS) $(BOOST_INC) $(addprefix $(OBJ_DIR)/,$(OBJS)) $(OBJ_DIR)/a/$(DICTNAME).o $(SOFLAGS) -o $@ $(LIBS)
-
+ifeq ($(PLATFORM),macosx)
+	install_name_tool -change libvdt.dylib @rpath/libvdt.dylib $@
+endif
 #---------------------------------------
 
 exe: $(addprefix $(EXE_DIR)/,$(EXES))
